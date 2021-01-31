@@ -11,7 +11,7 @@ import (
 
 	"github.com/go-ping/ping"
 
-	"github.com/workit/network-scanner/network"
+	"github.com/pcrandall/networkscanner/network"
 )
 
 type Peer struct {
@@ -27,7 +27,7 @@ var wg sync.WaitGroup
 
 func main() {
 
-	cidr := flag.String("cidr", "10.136.18.0/27", "CIDR block to scan")
+	cidr := flag.String("cidr", "192.168.1.1/24", "-cidr=<192.168.1.1/24> cidr block to scan")
 
 	flag.Parse()
 

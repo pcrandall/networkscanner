@@ -1,4 +1,4 @@
-module github.com/workit/network-scanner
+module github.com/pcrandall/networkscanner
 
 go 1.15
 
