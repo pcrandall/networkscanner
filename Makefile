@@ -19,11 +19,11 @@ run:
 	@go run .
 .PHONY: run
 
-# ## @echo "OS not defined, Usage: make build windows"
-# build-win:
-# 	@echo "==> building for windows"
-# 	@GOOS=windows GOARCH=386 go build .
-# .PHONY: build
+## @echo "OS not defined, Usage: make build windows"
+buildwin:
+	@echo "==> building for windows"
+	@GOOS=windows GOARCH=386 go build .
+.PHONY: build
 
 build:
 	@echo "==> building for windows"

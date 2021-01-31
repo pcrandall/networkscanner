@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/go-ping/ping"
-	"github.com/mostlygeek/arp"
 	"github.com/pcrandall/networkscanner/network"
 )
 
@@ -26,26 +25,28 @@ type Peer struct {
 
 type online struct {
 	addr  string
-	mac   string
 	bytes int
 	time  time.Duration
-	// pinger ping.Pinger
 }
 
 var (
-	wg sync.WaitGroup
+	wg        sync.WaitGroup
+	available []string
 )
 
 func main() {
 
-	ip := flag.String("ip", "192.168.1.1/24", "-ip=<192.168.1.1/24> ip block to scan")
+	ip := flag.String("ip", "192.168.1.1/24", "-ip=192.168.1.1/24 CIDRblock to scan.\nOnly CIDR format supported at this time.")
+	t := flag.Int("t", 500, "-t=500 timeout in milliseconds")
+	c := flag.Int("c", 1, "-c=1 number of times to ping")
+	silent := flag.Bool("s", false, "-s=true no output to console")
+	write := flag.Bool("w", false, "-w=true write output to ips.txt")
 
 	flag.Parse()
 
-	output, err := os.Create("ips.txt")
-	if err != nil {
-		panic(err)
-	}
+	count := c
+	timeout := time.Duration(*t) * time.Millisecond
+	fmt.Println(count)
 
 	peerConn := make(map[string]*Peer)
 	unavailable := make(map[string]*online)
@@ -61,9 +62,8 @@ func main() {
 		peerConn[ip] = &Peer{
 			Address:  ip,
 			Ctx:      &ctx,
-			Count:    1,
-			PingTime: 1000 * time.Millisecond,
-			Interval: 1000 * time.Millisecond,
+			Count:    4,
+			PingTime: timeout,
 		}
 
 		unavailable[ip] = &online{}
@@ -73,21 +73,39 @@ func main() {
 
 	wg.Wait()
 
-	for ip, _ := range arp.Table() {
-		unavailable[ip].mac = arp.Search(ip)
+	var output *os.File
+	var err error
+
+	if *write {
+		// Check if file exists
+		if _, err = os.Stat("ips.txt"); os.IsNotExist(err) {
+			output, err = os.Create("ips.txt")
+		} else { // If file exists, open it
+			os.Remove("ips.txt") // remove file and create new one
+			output, err = os.Create("ips.txt")
+			output, err = os.Open("ips.txt")
+		}
 	}
 
 	for _, val := range unavailable {
-		if val.bytes > 0 {
-			if val.mac == "" {
-				fmt.Println(val.addr, "\tmac: 00:00:00:00:00:00", "\tbytes rec:", val.bytes, "\ttime:", val.time)
-				io.WriteString(output, val.addr+"\n")
-			} else {
-				fmt.Println(val.addr, "\tmac:", val.mac, "\tbytes rec:", val.bytes, "\ttime:", val.time)
-				io.WriteString(output, val.addr+"\n")
-			}
+		if val.bytes > 0 && !*silent && *write { // console output and write to file
+			fmt.Println(val.addr, "\tbytes rec:", val.bytes, "\ttime:", val.time)
+			// io.WriteString(output, val.addr+"\n")
+		} else if val.bytes > 0 && *silent && *write { // write to file
+			// io.WriteString(output, val.addr+"\n")
+		} else if val.bytes > 0 && !*silent && !*write { // conole output
+			fmt.Println(val.addr, "\tbytes rec:", val.bytes, "\ttime:", val.time)
 		}
 	}
+
+	if *write { // console output and write to file
+		for _, val := range available {
+			io.WriteString(output, val)
+		}
+	}
+
+	fmt.Println(available)
+
 }
 
 func Ping(_ip string, ctx *context.Context, peer *Peer, unavailable *online) {
@@ -105,7 +123,6 @@ func Ping(_ip string, ctx *context.Context, peer *Peer, unavailable *online) {
 	}
 
 	pinger.Count = peer.Count
-	pinger.Interval = peer.Interval
 	pinger.Timeout = peer.PingTime
 
 	pinger.OnRecv = func(pkt *ping.Packet) {
@@ -117,9 +134,21 @@ func Ping(_ip string, ctx *context.Context, peer *Peer, unavailable *online) {
 	}
 
 	pinger.OnFinish = func(stats *ping.Statistics) {
-		// fmt.Printf("\n--- %s ping statistics ---\n", stats.Addr)
-		// fmt.Printf("%d packets transmitted, %d packets received, %v%% packet loss\n",
-		// 	stats.PacketsSent, stats.PacketsRecv, stats.PacketLoss)
+		// if stats.PacketLoss < 100 {
+		// 	fmt.Printf("\n--- %s ping statistics ---\n", stats.Addr)
+		// 	fmt.Printf("%d packets transmitted, %d packets received, %v%% packet loss\n",
+		// 		stats.PacketsSent, stats.PacketsRecv, stats.PacketLoss)
+		// }
+
+		if stats.PacketLoss > 99.9 {
+			// fmt.Printf("\n%s Available ---%d packets transmitted, %d packets received, %v%% packet loss\n", stats.Addr, stats.PacketsSent, stats.PacketsRecv, stats.PacketLoss)
+			s := fmt.Sprintf("%0f", stats.PacketLoss)
+			r := fmt.Sprintf("%x", stats.PacketsSent)
+			t := fmt.Sprintf("%x", stats.PacketsRecv)
+			available = append(available, string(stats.Addr)+" Available --- packets transmitted: "+r+" packets received: "+t+" packet loss "+s+"\n")
+			fmt.Printf("%d packets transmitted, %d packets received, %v%% packet loss\n",
+				stats.PacketsSent, stats.PacketsRecv, stats.PacketLoss)
+		}
 		// fmt.Printf("round-trip min/avg/max/stddev = %v/%v/%v/%v\n",
 		// 	stats.MinRtt, stats.AvgRtt, stats.MaxRtt, stats.StdDevRtt)
 		return
