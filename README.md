@@ -1,10 +1,14 @@
-# Network Scanner Tool
+# Network Scanner
 
-This tool helps you find all the online Peers available in a given Network.
-`network-scanner -cidr **target Network**`
+Find online hosts on subnet.
 
-example : network-scanner -cidr=192.168.1.1/24
+`network-scanner -ip**target Network**`
+
+```
+example : network-scanner -ip=192.168.1.1/24
+
+```
 
 Usage of network-scanner:
-  -cidr string
-        CIDR block to scan (default "192.168.1.1/24")
+  -ip string
+  CIDR block to scan (default "192.168.1.1/24")

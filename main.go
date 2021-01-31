@@ -3,14 +3,15 @@ package main
 import (
 	"context"
 	"flag"
-	"sync"
-
 	"fmt"
+	"io"
+	"os"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/go-ping/ping"
-
+	"github.com/mostlygeek/arp"
 	"github.com/pcrandall/networkscanner/network"
 )
 
@@ -23,17 +24,33 @@ type Peer struct {
 	Ctx      *context.Context
 }
 
-var wg sync.WaitGroup
+type online struct {
+	addr  string
+	mac   string
+	bytes int
+	time  time.Duration
+	// pinger ping.Pinger
+}
+
+var (
+	wg sync.WaitGroup
+)
 
 func main() {
 
-	cidr := flag.String("cidr", "192.168.1.1/24", "-cidr=<192.168.1.1/24> cidr block to scan")
+	ip := flag.String("ip", "192.168.1.1/24", "-ip=<192.168.1.1/24> ip block to scan")
 
 	flag.Parse()
 
-	peerConn := make(map[string]*Peer)
+	output, err := os.Create("ips.txt")
+	if err != nil {
+		panic(err)
+	}
 
-	_, IPrange := network.CalculateCIDR(*cidr)
+	peerConn := make(map[string]*Peer)
+	unavailable := make(map[string]*online)
+
+	_, IPrange := network.CalculateCIDR(*ip)
 
 	for _, ip := range IPrange {
 
@@ -49,38 +66,54 @@ func main() {
 			Interval: 1000 * time.Millisecond,
 		}
 
-		go Ping(ip, peerConn[ip].Ctx, peerConn[ip])
+		unavailable[ip] = &online{}
+
+		go Ping(ip, peerConn[ip].Ctx, peerConn[ip], unavailable[ip])
 	}
 
 	wg.Wait()
+
+	for ip, _ := range arp.Table() {
+		unavailable[ip].mac = arp.Search(ip)
+	}
+
+	for _, val := range unavailable {
+		if val.bytes > 0 {
+			if val.mac == "" {
+				fmt.Println(val.addr, "\tmac: 00:00:00:00:00:00", "\tbytes rec:", val.bytes, "\ttime:", val.time)
+				io.WriteString(output, val.addr+"\n")
+			} else {
+				fmt.Println(val.addr, "\tmac:", val.mac, "\tbytes rec:", val.bytes, "\ttime:", val.time)
+				io.WriteString(output, val.addr+"\n")
+			}
+		}
+	}
 }
 
-func Ping(address string, ctx *context.Context, peer *Peer) {
+func Ping(_ip string, ctx *context.Context, peer *Peer, unavailable *online) {
 
 	defer wg.Done()
 
-	pinger, err := ping.NewPinger(address)
+	pinger, err := ping.NewPinger(_ip)
+
 	if runtime.GOOS == "windows" {
 		pinger.SetPrivileged(true)
 	}
+
 	if err != nil {
 		panic(err)
 	}
 
 	pinger.Count = peer.Count
-
 	pinger.Interval = peer.Interval
-
 	pinger.Timeout = peer.PingTime
 
 	pinger.OnRecv = func(pkt *ping.Packet) {
-		fmt.Printf("%s Online, bytes received: %d: \n", pkt.IPAddr, pkt.Nbytes)
+		unavailable.addr = _ip
+		unavailable.bytes = pkt.Nbytes
+		unavailable.time = pkt.Rtt
 		// fmt.Printf("%d bytes from %s: icmp_seq=%d time=%v ttl=%v\n",
 		// 	pkt.Nbytes, pkt.IPAddr, pkt.Seq, pkt.Rtt, pkt.Ttl)
-		// if pkt.Nbytes > 0 {
-		// 	peer.Status = true
-		// 	peer.PingTime = pkt.Rtt
-		// }
 	}
 
 	pinger.OnFinish = func(stats *ping.Statistics) {
@@ -97,5 +130,4 @@ func Ping(address string, ctx *context.Context, peer *Peer) {
 	if err != nil {
 		fmt.Printf("Failed to ping target host: %s", err)
 	}
-
 }
