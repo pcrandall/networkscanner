@@ -1,14 +1,40 @@
 # Network Scanner
+Check for online hosts/ available addresses.
 
-Find online hosts on subnet.
+Made for windows, if you need other os support use [this repo](https://github.com/mostlygeek/arp) or something similar instead.
 
-`network-scanner -ip**target Network**`
+Available addresses will be written to "availableIPS.txt" in current directory with the -w=true flag set
+
+Flag syntax
 
 ```
-example : network-scanner -ip=192.168.1.1/24
+-flag
+-flag=x
+-flag x  // non-boolean flags only
+```
+Examples:
 
+Windows: from cmd.exe
+```
+networkscanner.exe -ip 192.168.1.0/27 -c 4 -w=true -t 1500 -e 192.168.1.0,192.168.1.1,192.168.1.2,192.168.1.30,192.168.1.31
+networkscanner.exe -ip 192.168.1.0/27 -c 2 -i 250 -w=true -t 1000 -e 192.168.1.0,192.168.1.1,192.168.1.2,192.168.1.30,192.168.1.31
+networkscanner.exe -ip=192.168.1.0/27 -c 2 -i 250 -w=true -t 1000
+networkscanner.exe -ip=192.168.1.0/27 -c 2 -i 250 -w=true -t 2000
+networkscanner.exe -ip=192.168.1.0/27 -c 4 -i 250 -w=false -t 2000
+networkscanner.exe -ip=192.168.1.0/27 -w=true -v=false -t 3000
+networkscanner.exe -ip=192.168.1.0/27
+networkscanner.exe -ip=192.168.1.0/27 -w=true
+networkscanner.exe -ip=192.168.1.0/27 -t 1000
 ```
 
-Usage of network-scanner:
-  -ip string
-  CIDR block to scan (default "192.168.1.1/24")
+Linux/Osx:
+```
+./networkscanner -ip=192.168.1.0/27
+./networkscanner -ip 192.168.1.0/27 -c 4 -w=true -t 1500 -e 192.168.1.0,192.168.1.1,192.168.1.2,192.168.1.30,192.168.1.31
+./networkscanner -ip 192.168.1.0/27 -c 2 -i 250 -w=true -t 1000 -e 192.168.1.0,192.168.1.1,192.168.1.2,192.168.1.30,192.168.1.31
+./networkscanner -ip=192.168.1.0/27 -c 2 -i 250 -w=true -t 1000
+./networkscanner -ip=192.168.1.0/27 -c 4 -i 250 -w=false -t 2000
+./networkscanner -ip=192.168.1.0/27 -w=true -v=false -t 3000
+./networkscanner -ip=192.168.1.0/27 -w=true
+./networkscanner -ip=192.168.1.0/27 -t 1000
+```

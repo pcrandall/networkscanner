@@ -1,38 +1,31 @@
-GOBINDATA := $(shell command -v go-bindata 2> /dev/null)
-
 currentDir = $(shell pwd)
-# releasesOutputDir = ${currentDir}/releases/$(date +'%F')
-# workOutputDir = ${WINDIR}/Projects/_sshClient/releases/$(date +'%F')/config
 
 ## installation
 install:
-ifndef GOBINDATA
-	@echo "==> installing go-bindata"
-	@go get -u github.com/go-bindata/go-bindata/...
-endif
 	@echo "==> installing go dependencies"
 	@go mod download
 .PHONY: install
 
 run:
-	@echo "==> running network scan"
+	@echo "==> running network scanner"
 	@go run .
 .PHONY: run
 
-## @echo "OS not defined, Usage: make build windows"
 buildwin:
-	@echo "==> building for windows"
+	@echo "==> building network scanner for windows"
 	@GOOS=windows GOARCH=386 go build .
 .PHONY: build
 
 build:
-	@echo "==> building for windows"
+	@echo "==> building network scanner"
 	@go build .
 .PHONY: build
 
 git:
+	@echo "==> adding git tracked files"
 	@git add -u
 	@git commit
+	@echo "==> pushing to git remote"
 	@git push origin
 .PHONY: git
 

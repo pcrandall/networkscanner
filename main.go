@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,109 +16,137 @@ import (
 	"github.com/pcrandall/networkscanner/network"
 )
 
-type Peer struct {
+type host struct {
 	Address  string
-	Status   bool
 	Count    int
 	PingTime time.Duration
 	Interval time.Duration
 	Ctx      *context.Context
 }
 
-type online struct {
+type onlineHosts struct {
 	addr  string
 	bytes int
 	time  time.Duration
 }
 
+type netTable map[string]string
+
+type availAddr struct {
+	// sync.RWMutex
+	table netTable
+}
+
 var (
 	wg        sync.WaitGroup
-	available []string
-	debug     *bool
-	write     *bool
-	silent    *bool
-	err       error
+	count     int
+	_interval int
+	_timeout  int
+
+	debug   bool
+	write   bool
+	verbose bool
+
+	err error
+	ip  string
+	e   string
+
+	exclude []string
+	output  *os.File
+
+	openAddr = &availAddr{
+		table: make(netTable),
+	}
 )
 
-func main() {
-	// flags
-	ip := flag.String("ip", "192.168.1.1/24", "default:-ip=192.168.1.1/24 CIDRblock to scan.\nOnly CIDR format supported at this time.")
-	t := flag.Int("t", 500, "default:-t=500 Timeout in milliseconds)")
-	c := flag.Int("c", 2, "default:-c=2 Number of times to ping")
-	i := flag.Int("i", 200, "default:-i=200 Ping interval")
-	// interval := time.Duration(*flag.Duration("i", 250, "default:-i=250 Ping interval")) * time.Millisecond
-	debug = flag.Bool("d", false, "default:false Debug")
-	silent = flag.Bool("s", false, "default:-s=false No output to console")
-	write = flag.Bool("w", false, "default:-w=false Write output to ips.txt in current directory")
+func init() {
+	// Initalize flags
+	flag.StringVar(&ip, "ip", "192.168.1.1/24", "Addresses to scan. Only CIDR format supported. default: -ip 192.168.1.1/24")
+	flag.StringVar(&e, "e", "", "Addresses to exclude from available list; seperated by comma. default: -e=\"\" example: -e 192.168.1.0,192,168.1.255")
+
+	flag.IntVar(&_timeout, "t", 500, "Timeout in milliseconds default: -t 500 ")
+	flag.IntVar(&_interval, "i", 200, "Ping interval default: -i 200")
+	flag.IntVar(&count, "c", 2, "Ping count default: -c 2")
+
+	flag.BoolVar(&debug, "d", false, "Debug default: -d=false ")
+	flag.BoolVar(&verbose, "v", false, "No output to console default: -v=false ")
+	flag.BoolVar(&write, "w", false, "Write output to availableIPS.txt in current directory default: -w=false ")
+
 	flag.Parse()
 
-	output, err := os.Create("ips.txt")
-	if err != nil {
-		panic(err)
+	if e != "" {
+		exclude = strings.Split(e, ",")
 	}
 
-	count := *c
-	timeout := time.Duration(*t) * time.Millisecond
-	interval := time.Duration(*i) * time.Millisecond
-	peerConn := make(map[string]*Peer)
-	unavailable := make(map[string]*online)
-
-	_, IPrange := network.CalculateCIDR(*ip)
-
-	// arp lookup
-	for ip, _ := range arp.Table() {
-		go func(ip string) {
-			mac := arp.Search(ip)
-			if mac != "" { // remove from available only if valid mac address was returned
-				if !*silent {
-					fmt.Println(ip, " mac: ", mac)
-				}
-				removeAvailable(ip)
-			}
-		}(ip)
+	if write {
+		output, err = os.Create("availableIPS.txt")
+		if err != nil {
+			panic(err)
+		}
 	}
+}
+
+func main() {
+
+	timeout := time.Duration(_timeout) * time.Millisecond
+	interval := time.Duration(_interval) * time.Millisecond
+	hostConn := make(map[string]*host)
+	pingedAddr := make(map[string]*onlineHosts)
+
+	_, IPrange := network.CalculateCIDR(ip)
 
 	for _, ip := range IPrange {
-		available = append(available, ip) // create slice to remove all unavailable addresses later
+		openAddr.addAddr(ip) // build list of possible addresses
 		wg.Add(1)
 		ctx := context.Background()
-		peerConn[ip] = &Peer{
+		hostConn[ip] = &host{
 			Address:  ip,
 			Ctx:      &ctx,
 			Count:    count,
 			PingTime: timeout,
 			Interval: interval,
 		}
-		unavailable[ip] = &online{}
-		go Ping(ip, peerConn[ip].Ctx, peerConn[ip], unavailable[ip])
+		pingedAddr[ip] = &onlineHosts{}
+		go Ping(ip, hostConn[ip].Ctx, hostConn[ip], pingedAddr[ip])
 	}
 
-	wg.Wait()
+	// arp lookup
+	for ip, _ := range arp.Table() {
+		go func(ip string) {
+			mac := arp.Search(ip)
+			if mac != "" { // remove from available only if valid mac address was returned
+				if verbose {
+					fmt.Println(ip, " mac: ", mac)
+				}
+				openAddr.delAddr(ip)
+			}
+		}(ip)
+	}
+	wg.Wait() // wait for all go routines to finish
 
-	for _, val := range unavailable {
-		if val.bytes > 0 && !*silent { // console output and write to file
+	for _, val := range pingedAddr {
+		if val.bytes > 0 && verbose { // console output and write to file
 			fmt.Println(val.addr, "is taken\tbytes rec:", val.bytes, "\ttime:", val.time)
 		}
 	}
 
-	//write remaining available addresses to file.
-	for _, val := range available {
-		io.WriteString(output, val+"\n")
+	// delete excluded addresses
+	for _, ip := range exclude {
+		openAddr.delAddr(ip)
 	}
 
-	if !*write {
-		err = os.Remove("ips.txt")
-		if err != nil {
-			panic(err)
+	//write remaining available addresses to file.
+	if write {
+		for _, val := range openAddr.table {
+			io.WriteString(output, val+"\n")
 		}
 	}
-
 }
 
-func Ping(_ip string, ctx *context.Context, peer *Peer, unavailable *online) {
+func Ping(addr string, ctx *context.Context, host *host, pingedAddr *onlineHosts) {
 	defer wg.Done()
 
-	pinger, err := ping.NewPinger(_ip)
+	pinger, err := ping.NewPinger(addr)
 
 	if runtime.GOOS == "windows" {
 		pinger.SetPrivileged(true)
@@ -127,26 +156,26 @@ func Ping(_ip string, ctx *context.Context, peer *Peer, unavailable *online) {
 		panic(err)
 	}
 
-	pinger.Count = peer.Count
-	pinger.Timeout = peer.PingTime
+	pinger.Count = host.Count
+	pinger.Timeout = host.PingTime
 
 	pinger.OnRecv = func(pkt *ping.Packet) {
 		// got reply remove from available addresses
-		if unavailable.bytes == 0 {
-			removeAvailable(_ip)
+		if pingedAddr.bytes == 0 {
+			openAddr.delAddr(addr)
 		}
 
-		unavailable.addr = _ip
-		unavailable.bytes = pkt.Nbytes
-		unavailable.time = pkt.Rtt
-		if *debug {
+		pingedAddr.addr = addr
+		pingedAddr.bytes = pkt.Nbytes
+		pingedAddr.time = pkt.Rtt
+		if debug {
 			fmt.Printf("%d bytes from %s: icmp_seq=%d time=%v ttl=%v\n",
 				pkt.Nbytes, pkt.IPAddr, pkt.Seq, pkt.Rtt, pkt.Ttl)
 		}
 	}
 
 	pinger.OnFinish = func(stats *ping.Statistics) {
-		if *debug {
+		if debug {
 			fmt.Printf("\n--- %s ping statistics ---\n", stats.Addr)
 			fmt.Printf("%d packets transmitted, %d packets received, %v%% packet loss\n",
 				stats.PacketsSent, stats.PacketsRecv, stats.PacketLoss)
@@ -162,16 +191,13 @@ func Ping(_ip string, ctx *context.Context, peer *Peer, unavailable *online) {
 	}
 }
 
-func removeAvailable(ip string) {
-	if *debug {
-		fmt.Println("in remove available", available)
-	}
-	for idx, val := range available {
-		if val == ip {
-			tmp := available[:idx]
-			available = available[idx+1 : len(available)-1]
-			tmp = append(tmp, available...)
-			available = tmp
-		}
+func (a *availAddr) addAddr(ip string) {
+	a.table[ip] = ip
+}
+
+func (a *availAddr) delAddr(ip string) {
+	_, ok := a.table[ip]
+	if ok {
+		delete(a.table, ip)
 	}
 }
