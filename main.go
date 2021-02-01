@@ -61,16 +61,16 @@ var (
 
 func init() {
 	// Initalize flags
-	flag.StringVar(&ip, "ip", "192.168.1.1/24", "Addresses to scan. Only CIDR format supported. default: -ip 192.168.1.1/24")
-	flag.StringVar(&e, "e", "", "Addresses to exclude from available list; seperated by comma. default: -e=\"\" example: -e 192.168.1.0,192,168.1.255")
+	flag.StringVar(&ip, "ip", "192.168.1.1/24", "Addresses to scan. Only CIDR format supported. -ip 192.168.1.1/24")
+	flag.StringVar(&e, "e", "", "Addresses to exclude from available list; seperated by comma.  -e 192.168.1.0,192,168.1.255")
 
-	flag.IntVar(&_timeout, "t", 500, "Timeout in milliseconds default: -t 500 ")
-	flag.IntVar(&_interval, "i", 200, "Ping interval default: -i 200")
-	flag.IntVar(&count, "c", 2, "Ping count default: -c 2")
+	flag.IntVar(&_timeout, "t", 500, "Timeout in milliseconds -t 500 ")
+	flag.IntVar(&_interval, "i", 200, "Ping interval -i 200")
+	flag.IntVar(&count, "c", 2, "Ping count -c 2")
 
-	flag.BoolVar(&debug, "d", false, "Debug default: -d=false ")
-	flag.BoolVar(&verbose, "v", false, "No output to console default: -v=false ")
-	flag.BoolVar(&write, "w", false, "Write output to availableIPS.txt in current directory default: -w=false ")
+	flag.BoolVar(&debug, "d", false, "Debug -d=true ")
+	flag.BoolVar(&verbose, "v", false, "Output to console -v=true ")
+	flag.BoolVar(&write, "w", false, "Write output to availableIPS.txt in current directory -w=false")
 
 	flag.Parse()
 
