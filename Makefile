@@ -1,32 +1,24 @@
 currentDir = $(shell pwd)
 
-
 ## installation
 install:
 	@echo "==> installing go dependencies"
 	@go mod download
 .PHONY: install
 
-# If the first argument is "run"...
-ifeq (run,$(firstword $(MAKECMDGOALS)))
-  # use the rest as arguments for "run"
-  RUN_ARGS := $(wordlist 2,$(words $(MAKECMDGOALS)),$(MAKECMDGOALS))
-  # ...and turn them into do-nothing targets
-  $(eval $(RUN_ARGS):;@:)
-endif
 run:
 	@echo "==> running network scanner"
 	@go run . $(RUN_ARGS)
 .PHONY: run
 
-buildwin:
+buildwindows:
 	@echo "==> building network scanner for windows"
-	@GOOS=windows GOARCH=386 go build -tags windows .
+	@${currentDir}/scripts/buildwin.sh
 .PHONY: build
 
-build:
-	@echo "==> building network scanner"
-	@go build -tags linux .
+buildlinux:
+	@echo "==> building network scanner for linux"
+	@${currentDir}/scripts/buildlinux.sh
 .PHONY: build
 
 git:
