@@ -9,10 +9,13 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"text/tabwriter"
 	"time"
 
 	"github.com/go-ping/ping"
-	"github.com/pcrandall/networkscanner/arp"
+	"github.com/mostlygeek/arp"
+
+	// "github.com/pcrandall/networkscanner/arp"
 	"github.com/pcrandall/networkscanner/network"
 )
 
@@ -26,6 +29,7 @@ type host struct {
 
 type onlineHosts struct {
 	addr  string
+	mac   string
 	bytes int
 	time  time.Duration
 }
@@ -33,8 +37,8 @@ type onlineHosts struct {
 type netTable map[string]string
 
 type availAddr struct {
-	// sync.RWMutex
 	table netTable
+	mutex sync.Mutex
 }
 
 var (
@@ -64,14 +68,13 @@ func init() {
 	flag.StringVar(&ip, "ip", "192.168.1.1/24", "Addresses to scan. Only CIDR format supported. -ip 192.168.1.1/24")
 	flag.StringVar(&e, "e", "", "Addresses to exclude from available list; seperated by comma.  -e 192.168.1.0,192,168.1.255")
 
-	flag.IntVar(&_timeout, "t", 500, "Timeout in milliseconds -t 500 ")
+	flag.IntVar(&_timeout, "t", 1000, "Timeout in milliseconds -t 500 ")
 	flag.IntVar(&_interval, "i", 200, "Ping interval -i 200")
 	flag.IntVar(&count, "c", 2, "Ping count -c 2")
 
 	flag.BoolVar(&debug, "d", false, "Debug -d=true ")
-	flag.BoolVar(&verbose, "v", false, "Output to console -v=true ")
+	flag.BoolVar(&verbose, "v", true, "No output to console -v=false")
 	flag.BoolVar(&write, "w", false, "Write output to availableIPS.txt in current directory -w=false")
-
 	flag.Parse()
 
 	if e != "" {
@@ -114,20 +117,31 @@ func main() {
 	for ip, _ := range arp.Table() {
 		go func(ip string) {
 			mac := arp.Search(ip)
-			if mac != "" { // remove from available only if valid mac address was returned
-				if verbose {
-					fmt.Println(ip, " mac: ", mac)
+			if mac != "" && mac != "00:00:00:00:00:00" { // remove from available only if valid mac address was returned
+				if debug {
+					fmt.Println(ip, "from arp.search() mac: ", mac)
 				}
+				pingedAddr[ip].mac = mac
 				openAddr.delAddr(ip)
 			}
 		}(ip)
 	}
-	wg.Wait() // wait for all go routines to finish
+	// wait for all go routines to finish
+	wg.Wait()
 
-	for _, val := range pingedAddr {
-		if val.bytes > 0 && verbose { // console output and write to file
-			fmt.Println(val.addr, "is taken\tbytes rec:", val.bytes, "\ttime:", val.time)
+	if verbose {
+		// initialize tabwriter
+		w := new(tabwriter.Writer)
+		// minwidth, tabwidth, padding, padchar, flags
+		w.Init(os.Stdout, 8, 8, 4, '\t', 0)
+		fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t", "IP address", "Response time", "MAC address", "Bytes")
+		fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t", "--------------", "-------------", "-----------------", "-----")
+		for _, val := range pingedAddr {
+			if val.bytes > 0 { // console output and write to file
+				fmt.Fprintf(w, "\n %s\t%s\t%s\t%d\t ", val.addr, val.time, val.mac, val.bytes)
+			}
 		}
+		w.Flush()
 	}
 
 	// delete excluded addresses
@@ -144,6 +158,7 @@ func main() {
 }
 
 func Ping(addr string, ctx *context.Context, host *host, pingedAddr *onlineHosts) {
+
 	defer wg.Done()
 
 	pinger, err := ping.NewPinger(addr)
@@ -158,7 +173,7 @@ func Ping(addr string, ctx *context.Context, host *host, pingedAddr *onlineHosts
 
 	pinger.Count = host.Count
 	pinger.Timeout = host.PingTime
-
+	pinger.Interval = host.Interval
 	pinger.OnRecv = func(pkt *ping.Packet) {
 		// got reply remove from available addresses
 		if pingedAddr.bytes == 0 {
@@ -166,7 +181,7 @@ func Ping(addr string, ctx *context.Context, host *host, pingedAddr *onlineHosts
 		}
 
 		pingedAddr.addr = addr
-		pingedAddr.bytes = pkt.Nbytes
+		pingedAddr.bytes += pkt.Nbytes
 		pingedAddr.time = pkt.Rtt
 		if debug {
 			fmt.Printf("%d bytes from %s: icmp_seq=%d time=%v ttl=%v\n",
@@ -182,7 +197,6 @@ func Ping(addr string, ctx *context.Context, host *host, pingedAddr *onlineHosts
 			fmt.Printf("round-trip min/avg/max/stddev = %v/%v/%v/%v\n",
 				stats.MinRtt, stats.AvgRtt, stats.MaxRtt, stats.StdDevRtt)
 		}
-		return
 	}
 
 	err = pinger.Run() // Blocks until finished.
@@ -192,10 +206,15 @@ func Ping(addr string, ctx *context.Context, host *host, pingedAddr *onlineHosts
 }
 
 func (a *availAddr) addAddr(ip string) {
+	a.mutex.Lock()
+	defer a.mutex.Unlock()
 	a.table[ip] = ip
 }
 
 func (a *availAddr) delAddr(ip string) {
+	a.mutex.Lock()
+	defer a.mutex.Unlock()
+
 	_, ok := a.table[ip]
 	if ok {
 		delete(a.table, ip)
