@@ -1,7 +1,7 @@
 # Network Scanner
 Check for online hosts/ available addresses.
 
-Made for windows, if you need other os support use [this repo](https://github.com/mostlygeek/arp) or something similar instead.
+Use build tags to build for proper os
 
 Available addresses will be written to "availableIPS.txt" in current directory with the -w=true flag set
 
