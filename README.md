@@ -6,11 +6,15 @@ Use build tags to build for proper os
 Available addresses will be written to "availableIPS.txt" in current directory with the -w=true flag set
 
 Flag syntax
-
 ```
 -flag
 -flag=x
 -flag x  // non-boolean flags only
+```
+Flag descriptions:
+```
+./networkscanner -h
+
 ```
 Examples:
 
