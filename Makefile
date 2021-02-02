@@ -8,7 +8,7 @@ install:
 
 run:
 	@echo "==> running network scanner"
-	@go run . $(RUN_ARGS)
+	@go run *.go
 .PHONY: run
 
 buildwindows:
