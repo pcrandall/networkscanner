@@ -51,7 +51,7 @@ func main() {
 	// wait for all gofuncs to finish
 	wg.Wait()
 
-	// print online host table
+	// print & write online host table
 	if verbose {
 		printOnlineHosts(pingedAddr)
 	}
@@ -62,7 +62,7 @@ func main() {
 	//write remaining available addresses to file.
 	if write {
 		for _, val := range openAddr.table {
-			io.WriteString(output, val+"\n")
+			io.WriteString(availableHostsFile, val+"\n")
 		}
 	}
 }

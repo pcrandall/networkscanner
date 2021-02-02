@@ -47,8 +47,9 @@ var (
 	ip  string
 	e   string
 
-	exclude []string
-	output  *os.File
+	exclude            []string
+	availableHostsFile *os.File
+	// onlineHostsFile    *os.File
 
 	openAddr = &availAddr{
 		table: make(netTable),
@@ -74,10 +75,14 @@ func init() {
 	}
 
 	if write {
-		output, err = os.Create("availableIPS.txt")
+		availableHostsFile, err = os.Create("availableIPS.txt")
 		if err != nil {
 			panic(err)
 		}
+		// onlineHostsFile, err = os.Create("onlineHosts.txt")
+		// if err != nil {
+		// 	panic(err)
+		// }
 	}
 }
 
