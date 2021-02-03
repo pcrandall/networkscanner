@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -49,7 +50,7 @@ var (
 
 	exclude            []string
 	availableHostsFile *os.File
-	// onlineHostsFile    *os.File
+	onlineHostsFile    *os.File
 
 	openAddr = &availAddr{
 		table: make(netTable),
@@ -75,14 +76,20 @@ func init() {
 	}
 
 	if write {
-		availableHostsFile, err = os.Create("availableIPS.txt")
+		newpath := filepath.Join(".", "scannedIPs")
+		if _, err := os.Stat(newpath); os.IsNotExist(err) {
+			os.MkdirAll(newpath, os.ModePerm)
+			// os.Mkdir("scannedIPs", 777)
+		}
+
+		availableHostsFile, err = os.Create("scannedIPs/availableIPS.txt")
 		if err != nil {
 			panic(err)
 		}
-		// onlineHostsFile, err = os.Create("onlineHosts.txt")
-		// if err != nil {
-		// 	panic(err)
-		// }
+		onlineHostsFile, err = os.Create("scannedIPs/reservedIPS.txt")
+		if err != nil {
+			panic(err)
+		}
 	}
 }
 

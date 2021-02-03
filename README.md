@@ -3,7 +3,7 @@ Check for online hosts/ available addresses.
 
 Use build tags to build for proper os
 
-Available addresses will be written to "availableIPS.txt" in current directory with the -w=true flag set
+With the -w=true flag set scannedIPs directory will be created in current directory. Available addresses will be written to "scannedIPs/availableIPS.txt", and Reserved addresses will be written to 'scannedIPs/reservedIPS.txt'
 
 Flag syntax
 ```

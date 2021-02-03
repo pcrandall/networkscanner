@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"sort"
 	"strconv"
@@ -32,17 +33,23 @@ func printOnlineHosts(pingedAddr map[string]*onlineHosts) {
 		i++
 	}
 	sort.Sort(pingedAddrList)
-
 	// initialize tabwriter
 	w := new(tabwriter.Writer)
 	// minwidth, tabwidth, padding, padchar, flags
 	w.Init(os.Stdout, 8, 8, 4, '\t', 0)
-
 	fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t", "IP address", "Response time", "MAC address", "Bytes")
 	fmt.Fprintf(w, "\n %s\t%s\t%s\t%s\t", "--------------", "-------------", "-----------------", "-----")
+
 	for _, val := range pingedAddrList {
 		if val.bytes > 0 { // console output and write to file
 			fmt.Fprintf(w, "\n %s\t%s\t%s\t%d\t ", val.addr, val.time, val.mac, val.bytes)
+			if write {
+				if val.mac == "" {
+					val.mac = "00:00:00:00:00:00"
+				}
+				str := fmt.Sprintf("%v", val.addr) + "\t" + fmt.Sprintf("%15v", val.time) + "\t" + fmt.Sprintf("%20v", val.mac) + "\t" + fmt.Sprintf("%5v", val.bytes) + "\n"
+				io.WriteString(onlineHostsFile, str)
+			}
 		}
 	}
 	w.Flush()
